@@ -19,7 +19,8 @@ class BybitTrader:
         self.session = HTTP(
             testnet=testnet,
             api_key=api_key,
-            api_secret=api_secret
+            api_secret=api_secret,
+            timeout=10
         )
 
         self.leverage = 8
