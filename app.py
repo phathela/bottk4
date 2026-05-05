@@ -275,10 +275,14 @@ def get_config():
         'testnet': TESTNET
     }), 200
 
-time.sleep(2)  # Wait 2 seconds to avoid Bybit rate limit on startup
-sync_position_state()
-trader.set_leverage(symbol=SYMBOL, leverage=8)  # Explicitly set 8x leverage on Bybit
-logger.info(f"Bot initialized with leverage={trader.leverage}x, balance_usage={trader.balance_usage*100}%")
+# Initialize on startup (wrapped so gunicorn doesn't crash if Bybit is unreachable)
+try:
+    time.sleep(2)  # Wait 2 seconds to avoid Bybit rate limit on startup
+    sync_position_state()
+    trader.set_leverage(symbol=SYMBOL, leverage=8)  # Explicitly set 8x leverage on Bybit
+    logger.info(f"Bot initialized with leverage={trader.leverage}x, balance_usage={trader.balance_usage*100}%")
+except Exception as e:
+    logger.error(f"Startup init failed (bot running in degraded mode): {str(e)}")
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
