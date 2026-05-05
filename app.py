@@ -1,6 +1,7 @@
 import os
 import logging
-import time  # ADD THIS LINE
+import time
+import threading
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from bybit_trader import BybitTrader
@@ -290,14 +291,18 @@ def get_config():
         'testnet': TESTNET
     }), 200
 
-# Initialize on startup (wrapped so gunicorn doesn't crash if Bybit is unreachable)
-try:
-    time.sleep(2)  # Wait 2 seconds to avoid Bybit rate limit on startup
-    sync_position_state()
-    trader.set_leverage(symbol=SYMBOL, leverage=8)  # Explicitly set 8x leverage on Bybit
-    logger.info(f"Bot initialized with leverage={trader.leverage}x, balance_usage={trader.balance_usage*100}%")
-except Exception as e:
-    logger.error(f"Startup init failed (bot running in degraded mode): {str(e)}")
+# Initialize in background so gunicorn starts serving immediately
+def _startup():
+    """Run startup tasks after Flask is ready (non-blocking)."""
+    try:
+        time.sleep(2)  # Avoid Bybit rate limit on startup
+        sync_position_state()
+        trader.set_leverage(symbol=SYMBOL, leverage=8)
+        logger.info(f"Bot initialized with leverage={trader.leverage}x, balance_usage={trader.balance_usage*100}%")
+    except Exception as e:
+        logger.error(f"Startup init failed (bot running in degraded mode): {str(e)}")
+
+threading.Thread(target=_startup, daemon=True).start()
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
