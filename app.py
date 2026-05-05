@@ -16,7 +16,7 @@ logging.basicConfig(
 
 API_KEY = os.getenv('BYBIT_API_KEY', '')
 API_SECRET = os.getenv('BYBIT_API_SECRET', '')
-WEBHOOK_KEY = os.getenv('WEBHOOK_KEY', 'default_webhook_key')
+WEBHOOK_KEY = os.getenv('WEBHOOK_KEY') or os.getenv('WEBHOOK_SECRET', 'default_webhook_key')
 SYMBOL = os.getenv('SYMBOL', 'BTCUSDT')
 TESTNET = os.getenv('BYBIT_TESTNET', 'True').lower() == 'true'
 
@@ -56,25 +56,40 @@ def health():
 
 @app.route('/webhook/3commas/a', methods=['POST'])
 def webhook_3commas_a():
-    """Accept webhook with four action types: enter_long, enter_short, enter_exit_long, enter_exit_short"""
+    """Accept webhook with TradingView/3Commas actions: enter_long, enter_short, exit_long, exit_short"""
     try:
+        # Authenticate
+        auth_key = request.headers.get('X-Webhook-Key') or request.headers.get('Authorization', '').replace('Bearer ', '')
+        if auth_key != WEBHOOK_KEY:
+            logger.warning(f"Unauthorized webhook attempt with key: {auth_key}")
+            return jsonify({'error': 'Unauthorized'}), 401
+
         data = request.get_json(force=True, silent=True)
         logger.info(f"Webhook received: {data}")
-        
+
         if data is None:
             logger.warning("Failed to parse JSON body — missing or invalid Content-Type")
             return jsonify({'error': 'Invalid or missing JSON body'}), 400
-        
+
         action = data.get('action', '').lower()
-        
-        # Validate action
-        valid_actions = ['enter_long', 'enter_short', 'enter_exit_long', 'enter_exit_short']
-        if action not in valid_actions:
+
+        # Normalize TradingView/3Commas action names
+        action_map = {
+            'enter_long': 'enter_long',
+            'enter_short': 'enter_short',
+            'exit_long': 'enter_exit_long',
+            'exit_short': 'enter_exit_short',
+            'close_long': 'enter_exit_long',
+            'close_short': 'enter_exit_short',
+        }
+        normalized_action = action_map.get(action)
+
+        if normalized_action is None:
             logger.warning(f"Unknown action: {action}")
-            return jsonify({'error': f'Unknown action: {action}. Valid actions: {valid_actions}'}), 400
-        
-        logger.info(f"Processing action: {action}")
-        result = execute_action(action)
+            return jsonify({'error': f'Unknown action: {action}'}), 400
+
+        logger.info(f"Processing action: {action} -> {normalized_action}")
+        result = execute_action(normalized_action)
         
         return jsonify({
             'status': 'received',
