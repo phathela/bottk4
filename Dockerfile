@@ -9,6 +9,6 @@ COPY . .
 
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 5000
+EXPOSE 8080
 
-CMD ["python", "start.py"]
+CMD gunicorn --bind 0.0.0.0:8080 --workers 1 --timeout 120 --access-logfile - --error-logfile - app:app
