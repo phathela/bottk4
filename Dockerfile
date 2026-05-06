@@ -11,4 +11,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD gunicorn -c gunicorn.conf.py app:app
+CMD sh -c 'echo "RAILWAY_PORT=$PORT" && gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --timeout 120 --access-logfile - --error-logfile - app:app'
